@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home</title>
+    <style>
+        p {
+            background-color: rgb(16, 70, 16);
+            color: white;
+        }
+    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="./nacl.js"></script>
+    <script src="https://bundle.run/buffer@6.0.3"></script>
+    <script src="https://randojs.com/1.0.0.js"></script>
+    <script>
+        const isPetraInstalled = window.aptos;
+        // const message = "Hey!";
+
+        const getAptosWallet = () => {
+            if ('aptos' in window) {
+                return window.aptos;
+            } else {
+                window.open('https://petra.app/', `_blank`);
+            }
+        };
+
+        let curr_address;
+
+        let message;
+        let nonce;
+
+        async function initial() {
+            let connectionStatus = await window.aptos.isConnected();
+            nonce = rando(1, 9999);
+            if (connectionStatus == true) {
+                let user = await window.aptos.account();
+                document.getElementById("setAddr").innerHTML = `Connected to ${user.address}`;
+            }
+
+            window.aptos.onAccountChange((newAccount) => {
+                // If the new account has already connected to your app then the newAccount will be returned
+                if (newAccount) {
+                    currentAccount = newAccount;
+                } else {
+                    // Otherwise you will need to ask to connect to the new account
+                    currentAccount = window.aptos.connect();
+                }
+            });
+        }
+
+        async function connectWallet() {
+            const wallet = getAptosWallet();
+            let connectionStatus = await window.aptos.isConnected();
+            if (connectionStatus == false) {
+                try {
+                    const response = await wallet.connect();
+                    console.log(response);
+
+                    const account = await wallet.account();
+                    console.log(account);
+                    console.log(account.address);
+                    curr_address = account.address;
+                    document.getElementById("setAddr").innerHTML = `Connected to ${account.address}`;
+
+                    // Current network
+                    let network = await window.aptos.network();
+                    console.log(network);
+
+                } catch (error) {
+                    console.log(error);
+                }
+            } else {
+                alert(`Wallet Already Connected.`);
+            }
+        }
+
+        // // event listener for network changing
+        // window.aptos.onNetworkChange((newNetwork) => {
+        //     network = newNetwork;
+        // });
+
+        // window.aptos.onAccountChange((newAccount) => {
+        //     // If the new account has already connected to your app then the newAccount will be returned
+        //     if (newAccount) {
+        //         currentAccount = newAccount;
+        //     } else {
+        //         // Otherwise you will need to ask to connect to the new account
+        //         currentAccount = window.aptos.connect();
+        //     }
+        // });
+
+        // event listener for disconnecting
+
+        async function disconnectWallet() {
+            const wallet = getAptosWallet();
+            let connectionStatus = await window.aptos.isConnected();
+            if (connectionStatus == true) {
+                try {
+                    const response = await wallet.disconnect();
+                    if (response == undefined) {
+                        alert(`Disconnected Successfully.`);
+                        document.getElementById("setAddr").innerHTML = "";
+                    }
+                    console.log(response);
+
+                    // event listener for disconnecting
+                    window.aptos.onDisconnect(() => {
+                        connectionStatus = false;
+                    });
+
+                } catch (error) {
+                    if (error.code = 4001) {
+                        alert(`Wallet Not Connected. (${error.name})`);
+                    }
+                    console.log(error);
+                    // { code: 4001, message: "User rejected the request."}
+                }
+            } else {
+                alert(`Wallet Not Connected.`);
+            }
+        }
+
+        async function signMessage() {
+
+            const wallet = getAptosWallet();
+            message = document.getElementById("val").value;
+            if (message != "") {
+                try {
+                    const response = await window.aptos.signMessage({
+                        message,
+                        nonce,
+                    });
+                    console.log(response);
+                    const { publicKey } = await window.aptos.account();
+                    // Remove the 0x prefix
+                    const key = publicKey.slice(2, 66);
+                    const verified = nacl.sign.detached.verify(
+                        buffer.Buffer.from(response.fullMessage),
+                        buffer.Buffer.from(response.signature, 'hex'),
+                        buffer.Buffer.from(key, 'hex'),
+                    );
+                    const pki = nacl.sign.keyPair();
+                    const msgHash = nacl.hash(
+                        buffer.Buffer.from(response.fullMessage),
+                    );
+                    console.log(verified);
+                    console.log(pki);
+                    console.log(msgHash);
+                    if (verified == true) {
+                        alert("Message is signed.");
+                    } else {
+                        alert("Something went wrong!");
+                    }
+                } catch (error) {
+                    if (error.code = 4001) {
+                        alert(`Please Connect Wallet. (${error.name})`);
+                    }
+                    console.error(error);
+                }
+            } else {
+                alert("Please enter message!");
+            }
+        }
+    </script>
+</head>
+
+<body onload="initial()">
+    <div class="container-fluid pt-2 pb-2 my-2"></div>
+    <p id="setAddr"></p>
+    <input id="val" type="text" class="form-control w-50 text-dark" placeholder="Enter Message here" /><br>
+    <input type="button" value="Sign Message" onclick="signMessage()"> <br /><br />
+    <input type="button" value="Connect Wallet" onclick="connectWallet()">
+    <input type="button" value="Disconnect Wallet" onclick="disconnectWallet()">
+    </div>
+</body>
+
+</html>
